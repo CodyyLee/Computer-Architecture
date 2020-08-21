@@ -2,41 +2,110 @@
 
 import sys
 
+HLT = 0b00000001
+LDI = 0b10000010
+PRN = 0b01000111
+MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
+ADD = 0b10100000
+
 class CPU:
     """Main CPU class."""
+    
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.reg = [0] * 8
+        self.ram = [0] * 256
+        self.pc = 0
+        self.sp = 7 #points to register not ram location
+        self.running = False
+        self.branchTable = {
+            HLT : self.hlt,
+            LDI : self.ldi,
+            PRN : self.prn,
+            MUL : self.mul,
+            PUSH : self.push,
+            POP : self.pop,
+            CALL : self.call,
+            RET : self.ret,
+            ADD : self.add
+        }
 
-    def load(self):
+    def ram_read(self, MAR):
+        return self.ram[MAR]
+        
+    def ram_write(self, MAR, MDR):
+        self.ram[MAR] = MDR
+    
+    def push(self, a, b):
+        reg = a
+        value = self.reg[reg]
+        self.reg[self.sp] -=1
+        self.ram_write(self.reg[self.sp], value)
+        self.pc += 2
+    
+    def pop(self, a, b):
+        reg = a
+        value = self.ram_read(self.reg[self.sp])
+        self.reg[reg] = value
+        self.reg[self.sp] +=1
+        self.pc += 2
+
+    def call(self, a, b):
+        reg = a
+        after = self.pc + 2
+        self.pc = self.reg[reg]
+        self.reg[self.sp] -= 1
+        self.ram_write(self.reg[self.sp], after)
+
+    def ret(self, a, b):
+        self.pc = self.ram[self.reg[self.sp]]
+        self.reg[self.sp] += 1
+
+    def hlt(self, a = None , b = None):
+        self.running = False
+
+    def ldi(self, a, b):
+        self.reg[a] = b
+        self.pc += 3
+
+    def prn(self, a, b = None):
+        print(self.reg[a])
+        self.pc += 2
+
+    def add(self, a , b):
+        self.alu('ADD', a, b)
+        self.pc+=3
+
+    def mul(self, a, b):
+        self.reg[a] = self.reg[a] * self.reg[b]
+        self.pc += 3
+
+    def load(self, program):
         """Load a program into memory."""
 
         address = 0
 
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
-
+        program = program
+        with open(program) as f:
+            for line in f:
+                command = line.split('#')
+                command = command[0].strip()
+                if command == '':
+                    continue
+                command = int(command, 2)
+                self.ram[address] = command
+                address += 1
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -62,4 +131,15 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        self.running = True
+        # breakpoint()
+
+        while self.running:
+            IR = self.ram_read(self.pc)
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+            if IR in self.branchTable:
+                self.branchTable[IR](operand_a, operand_b)
+            else:
+                print("Automatically Exited")
+                self.hlt()

@@ -4,8 +4,8 @@
 
 import sys
 from cpu import *
-
+syst = sys.argv[1]
 cpu = CPU()
 
-cpu.load()
+cpu.load(syst)
 cpu.run()
